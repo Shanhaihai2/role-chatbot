@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+      - ./models:/app/models
+    environment:
+      - DEBUG=true
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
