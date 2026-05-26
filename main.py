@@ -3,12 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.response import ApiResponse
 from app.api.v1.health import router as health_router
+from app.api.v1.roles import router as roles_router
+from contextlib import asynccontextmanager
+from app.core.database import Base, engine
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # 跨域配置
@@ -22,6 +31,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(roles_router, prefix="/api/v1")
 
 # 全局异常处理器
 from fastapi.exceptions import HTTPException
