@@ -16,8 +16,10 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 # 全局加载 Reranker 模型
-reranker_model = CrossEncoder(os.path.join(settings.EMBEDDING_MODEL_DIR, "bge-reranker-base"), max_length=512)
-
+reranker_model = CrossEncoder(
+    settings.RERANKER_MODEL_PATH,
+    max_length=512
+)
 def rerank_documents(query: str, docs: list, top_n: int = 3) -> list:
     """用 BGE Reranker 对候选文档重新打分排序"""
     if not docs:

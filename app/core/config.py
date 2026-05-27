@@ -21,7 +21,8 @@ class Settings(BaseSettings):
 
     # Embedding
     EMBEDDING_MODEL_PATH: str = "./models/bge-small-zh-v1.5"
-
+    RERANKER_MODEL_PATH: str = "./models/bge-reranker-base"
+    
     # 安全
     SECRET_KEY: str = "this-is-a-test-for-my-secret-key"
 
