@@ -4,6 +4,9 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from app.core.config import settings
+from sentence_transformers import CrossEncoder
+import os
+
 
 # 复用全局 Embedding 模型
 embeddings = HuggingFaceEmbeddings(
@@ -12,10 +15,23 @@ embeddings = HuggingFaceEmbeddings(
     encode_kwargs={'normalize_embeddings': True}
 )
 
+# 全局加载 Reranker 模型
+reranker_model = CrossEncoder(os.path.join(settings.EMBEDDING_MODEL_DIR, "bge-reranker-base"), max_length=512)
+
+def rerank_documents(query: str, docs: list, top_n: int = 3) -> list:
+    """用 BGE Reranker 对候选文档重新打分排序"""
+    if not docs:
+        return docs
+    pairs = [[query, doc.page_content] for doc in docs]
+    scores = reranker_model.predict(pairs)
+    # 按分数从高到低排序
+    sorted_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return [docs[i] for i in sorted_indices[:top_n]]
+
 def retrieve_role_context(role_id: int, query: str, k: int = 3) -> List[str]:
     """
-    从角色知识库中检索与问题最相关的对话片段
-    返回文本内容列表
+    混合检索 + Rerank 精排
+    返回最相关的文本内容列表
     """
     collection_name = f"role_{role_id}"
     # 1. 语义检索
@@ -43,5 +59,7 @@ def retrieve_role_context(role_id: int, query: str, k: int = 3) -> List[str]:
         if doc.page_content not in [d.page_content for d in combined]:
             combined.append(doc)
     
-    # 4. 返回前 k 条
-    return [doc.page_content for doc in combined[:k]]
+    # 4. Rerank 精排
+    reranked = rerank_documents(query, combined, top_n=k)
+
+    return [doc.page_content for doc in reranked]
