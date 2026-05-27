@@ -15,6 +15,8 @@ async def lifespan(app: FastAPI):
     # 预加载 Embedding 模型
     from app.services.material_service import embeddings
     print("✅ Embedding 模型已加载")
+    from app.models import memory# 确保模型被注册
+
     yield
 
 app = FastAPI(
