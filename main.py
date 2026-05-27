@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.response import ApiResponse
 from app.api.v1.health import router as health_router
 from app.api.v1.roles import router as roles_router
+from app.api.v1.chat import router as chat_router
 from contextlib import asynccontextmanager
 from app.core.database import Base, engine
 
@@ -36,6 +37,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(roles_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 
 # 全局异常处理器
 from fastapi.exceptions import HTTPException
