@@ -5,6 +5,9 @@ from app.models.role import Role
 from app.core.response import ApiResponse
 from app.agents.persona_agent import generate_persona_instruction
 from app.services.material_service import build_role_knowledge_base
+from app.services.role_service import update_role, delete_role
+from app.models.request import RoleUpdate
+from app.core.logger import logger
 
 router = APIRouter()
 
@@ -68,3 +71,27 @@ async def build_knowledge_base(role_id: int, db: Session = Depends(get_db)):
         "msg": f"知识库构建完成，共生成 {chunk_count} 个文本块"
     })
 
+# ====== 更新角色 ======
+@router.put("/roles/{role_id}")
+async def update_role_api(
+    role_id: int,
+    update_data: RoleUpdate,
+    db: Session = Depends(get_db)
+): 
+    logger.info(f"收到更新角色请求：role_id={role_id}")
+    """更新角色信息。提供什么字段就更新什么字段。"""
+    role = update_role(role_id, update_data.model_dump(exclude_unset=True), db)
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return ApiResponse.ok(data={"id": role.id, "name": role.name, "msg": "角色信息已更新"})
+
+
+# ====== 删除角色 ======
+@router.delete("/roles/{role_id}")
+async def delete_role_api(role_id: int, db: Session = Depends(get_db)):
+    """删除角色及其关联数据。"""
+    logger.info(f"收到删除角色请求：role_id={role_id}")
+    role_name = delete_role(role_id, db)
+    if not role_name:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return ApiResponse.ok(msg=f"角色「{role_name}」已被永久删除")
