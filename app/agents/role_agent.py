@@ -1,4 +1,5 @@
-from typing import TypedDict, List
+from typing import TypedDict, List, Annotated
+import operator
 from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -6,6 +7,9 @@ from langchain_core.output_parsers import StrOutputParser
 from app.core.config import settings
 from app.services.role_rag_service import retrieve_role_context
 from app.services.memory_service import retrieve_long_term_memories, extract_memory_content, save_long_term_memory
+from app.services.security_service import contains_blocked_keywords, semantic_audit
+from app.core.logger import logger
+from app.utils.datetime_utils import get_current_datetime_info, is_sleeping
 
 # 初始化LLM
 llm = ChatOllama(
@@ -16,14 +20,14 @@ llm = ChatOllama(
 
 # 定义Agent状态
 class RoleAgentState(TypedDict):
-    role_id: int
-    role_name: str
-    persona: str
-    user_message: str
-    history: List[str]           # 简化处理：存最近几轮的文本
-    retrieved_materials: str     # RAG检索到的素材
-    retrieved_memories: str 
-    final_response: str
+    role_id: Annotated[int, lambda x, y: y]  # 保留最后一次写入的值
+    role_name: Annotated[str, lambda x, y: y]
+    persona: Annotated[str, lambda x, y: y]
+    user_message: Annotated[str, lambda x, y: y]
+    history: Annotated[List[str], lambda x, y: y]
+    retrieved_materials: Annotated[str, lambda x, y: y]
+    retrieved_memories: Annotated[str, lambda x, y: y]
+    final_response: Annotated[str, lambda x, y: y]
 
 # 节点1：加载角色设定
 def load_persona(state: RoleAgentState) -> RoleAgentState:
@@ -71,8 +75,24 @@ def generate_response(state: RoleAgentState) -> RoleAgentState:
     # 构建对话历史文本
     history_text = "\n".join(state["history"][-6:]) if state["history"] else "无"
 
+    # 获取当前时间信息
+    time_info = get_current_datetime_info()
+    time_context = f"""现在是{time_info['current_date']} {time_info['weekday']} {time_info['current_time']}（{time_info['time_period']}）。"""
+
+    if time_info['holiday']:
+        time_context += f" 今天是{time_info['holiday']}。"
+
+    # 作息判断（使用默认作息表，后续可从数据库读取）
+    default_schedule = {"sleep": "23:00-07:00", "work": "09:00-18:00"}
+    sleeping = is_sleeping(default_schedule)
+    if sleeping:
+        time_context += f" 现在是你（{state['role_name']}）的睡觉时间。如果用户在这个时候打扰你，你应该表现出被吵醒的样子，语气慵懒、不耐烦或迷糊，但仍保持角色设定。"
+        logger.info(f"角色 {state['role_name']} 处于睡眠时段，回复将带有困倦语气")
+
     prompt = ChatPromptTemplate.from_template("""
 你是一个角色扮演AI，你的身份是{role_name}。你必须完全以{role_name}的身份、语气、性格说话。
+
+{time_context}
 
 ## 你的角色设定
 {persona}
@@ -106,9 +126,31 @@ def generate_response(state: RoleAgentState) -> RoleAgentState:
         "materials": state["retrieved_materials"],
         "history": history_text,
         "message": state["user_message"],
-        "role_name": state["role_name"]# 新增，从 state 中获取角色名
+        "role_name": state["role_name"],
+        "time_context": time_context,
     })
     state["final_response"] = response
+    logger.info(f"角色 {state['role_name']} 生成回复完成，长度：{len(response)}")
+    return state
+
+def security_check(state: RoleAgentState) -> RoleAgentState:
+    """双层风控：关键词 + LLM 语义审核"""
+    response = state["final_response"]
+    logger.info("开始内容安全审核...")
+
+    # 第一层：关键词过滤
+    if contains_blocked_keywords(response):
+        logger.warning("内容安全：关键词拦截")
+        state["final_response"] = "（系统提示：该回复因内容安全原因已被拦截）"
+        return state
+
+    # 第二层：LLM 语义审核
+    safe, reason = semantic_audit(response)
+    if not safe:
+        logger.warning(f"内容安全：语义拦截，原因：{reason}")
+        state["final_response"] = f"（系统提示：该回复因内容安全原因已被拦截。原因：{reason}）"
+
+    logger.info("内容安全审核通过")
     return state
 
 def extract_new_memories(state: RoleAgentState) -> RoleAgentState:
@@ -131,6 +173,7 @@ def build_role_agent():
     graph.add_node("retrieve_memories", retrieve_memories)       # 新
     graph.add_node("retrieve_materials", retrieve_materials)
     graph.add_node("generate_response", generate_response)
+    graph.add_node("security_check", security_check)
     graph.add_node("extract_new_memories", extract_new_memories) # 新
 
     # 设置边
@@ -138,6 +181,7 @@ def build_role_agent():
     graph.add_edge("load_persona", "retrieve_memories")
     graph.add_edge("retrieve_memories", "retrieve_materials")
     graph.add_edge("retrieve_materials", "generate_response")
+    graph.add_edge("generate_response", "security_check")
     graph.add_edge("generate_response", "extract_new_memories")
     graph.add_edge("extract_new_memories", END)
 

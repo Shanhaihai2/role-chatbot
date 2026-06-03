@@ -7,17 +7,21 @@ from app.api.v1.roles import router as roles_router
 from app.api.v1.chat import router as chat_router
 from contextlib import asynccontextmanager
 from app.core.database import Base, engine
+from app.core.logger import logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("应用启动中...")
     # 建表
     Base.metadata.create_all(bind=engine)
+    logger.info("数据库表创建完成")
     # 预加载 Embedding 模型
     from app.services.material_service import embeddings
     print("✅ Embedding 模型已加载")
     from app.models import memory# 确保模型被注册
 
     yield
+    logger.info("应用关闭")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -47,6 +51,7 @@ from fastapi.responses import JSONResponse
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
+    logger.error(f"未捕获异常：{type(exc).__name__}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(code=exc.status_code, msg=exc.detail).model_dump()
@@ -54,6 +59,7 @@ async def http_exception_handler(request, exc):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
+    logger.error(f"未捕获异常：{type(exc).__name__}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content=ApiResponse.error(code=500, msg="服务器内部错误").model_dump()

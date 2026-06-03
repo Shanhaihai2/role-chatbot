@@ -67,3 +67,4 @@ async def build_knowledge_base(role_id: int, db: Session = Depends(get_db)):
         "chunk_count": chunk_count,
         "msg": f"知识库构建完成，共生成 {chunk_count} 个文本块"
     })
+
