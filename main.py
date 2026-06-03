@@ -8,6 +8,8 @@ from app.api.v1.chat import router as chat_router
 from contextlib import asynccontextmanager
 from app.core.database import Base, engine
 from app.core.logger import logger
+from app.models.user import User  # 确保建表时包含 User 表
+from app.api.v1.users import router as users_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,6 +46,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(roles_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
 
 # 全局异常处理器
 from fastapi.exceptions import HTTPException
