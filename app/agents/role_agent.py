@@ -15,12 +15,14 @@ from app.utils.datetime_utils import get_current_datetime_info, is_sleeping
 llm = ChatOllama(
     model=settings.OLLAMA_MODEL,
     temperature=0.7,  # 角色扮演需要一定的创造性
-    base_url=settings.OLLAMA_BASE_URL
+    base_url=settings.OLLAMA_BASE_URL,
+    streaming=True,
 )
 
 # 定义Agent状态
 class RoleAgentState(TypedDict):
     role_id: Annotated[int, lambda x, y: y]  # 保留最后一次写入的值
+    user_id: Annotated[str, lambda x, y: y]
     role_name: Annotated[str, lambda x, y: y]
     persona: Annotated[str, lambda x, y: y]
     user_message: Annotated[str, lambda x, y: y]
@@ -39,6 +41,7 @@ def retrieve_memories(state: RoleAgentState) -> RoleAgentState:
     """检索长期记忆"""
     docs = retrieve_long_term_memories(
         role_id=state["role_id"],
+        user_id=state["user_id"],
         query=state["user_message"],
         k=3
     )
@@ -161,7 +164,7 @@ def extract_new_memories(state: RoleAgentState) -> RoleAgentState:
         for line in info.strip().split("\n"):
             line = line.strip()
             if line:
-                save_long_term_memory(state["role_id"], line, conversation)
+                save_long_term_memory(state["role_id"], state["user_id"],line, conversation)
     return state
 
 # 构建图

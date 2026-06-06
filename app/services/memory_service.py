@@ -39,7 +39,7 @@ def extract_memory_content(conversation: str) -> str:
     chain = prompt | memory_llm | StrOutputParser()
     return chain.invoke({"conversation": conversation})
 
-def save_long_term_memory(role_id: int, content: str, source: str, user_id: str = "default_user"):
+def save_long_term_memory(role_id: int, user_id: str, content: str, source: str):
     """保存长期记忆到数据库和向量库"""
     # 1. 存入 SQLite
     db = SessionLocal()
@@ -59,7 +59,7 @@ def save_long_term_memory(role_id: int, content: str, source: str, user_id: str 
         page_content=content,
         metadata={"role_id": str(role_id), "user_id": user_id, "memory_id": str(memory_id)}
     )
-    collection_name = f"role_{role_id}_memory"
+    collection_name = f"role_{role_id}_memory_user_{user_id}" 
     Chroma.from_documents(
         documents=[doc],
         embedding=embeddings,
@@ -67,9 +67,9 @@ def save_long_term_memory(role_id: int, content: str, source: str, user_id: str 
         collection_name=collection_name
     )
 
-def retrieve_long_term_memories(role_id: int, query: str, k: int = 3, user_id: str = "default_user") -> List[str]:
+def retrieve_long_term_memories(role_id: int, user_id: str, query: str, k: int = 3) -> List[str]:
     """检索与当前话题相关的长期记忆"""
-    collection_name = f"role_{role_id}_memory"
+    collection_name = f"role_{role_id}_memory_user_{user_id}" 
     try:
         vectordb = Chroma(
            collection_name=collection_name,
