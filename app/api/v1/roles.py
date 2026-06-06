@@ -5,9 +5,11 @@ from app.models.role import Role
 from app.core.response import ApiResponse
 from app.agents.persona_agent import generate_persona_instruction
 from app.services.material_service import build_role_knowledge_base
-from app.services.role_service import update_role, delete_role
-from app.models.request import RoleUpdate
+from app.services.role_service import update_role, delete_role, update_persona
+from app.models.request import RoleUpdate, PersonaUpdate
 from app.core.logger import logger
+from app.utils.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 
@@ -95,3 +97,17 @@ async def delete_role_api(role_id: int, db: Session = Depends(get_db)):
     if not role_name:
         raise HTTPException(status_code=404, detail="角色不存在")
     return ApiResponse.ok(msg=f"角色「{role_name}」已被永久删除")
+
+@router.put("/roles/{role_id}/persona")
+async def update_persona_api(
+    role_id: int,
+    data: PersonaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """手动编辑角色人设（需要登录）"""
+    logger.info(f"用户 {current_user.username} 请求修改角色 {role_id} 人设")
+    role = update_persona(role_id, data.persona_instruction, db)
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return ApiResponse.ok(data={"role_id": role.id, "msg": "人设已更新"})

@@ -52,3 +52,19 @@ def delete_role(role_id: int, db: Session):
     db.commit()
     logger.info(f"角色 {role_id}（{role_name}）已删除")
     return role_name
+
+def update_persona(role_id: int, persona_text: str, db: Session):
+    """
+    手动更新角色人设指令
+    返回更新后的角色对象，如果角色不存在返回 None
+    """
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        logger.warning(f"手动更新人设失败：角色 {role_id} 不存在")
+        return None
+
+    role.persona_instruction = persona_text
+    db.commit()
+    db.refresh(role)
+    logger.info(f"角色 {role_id} 人设已手动更新")
+    return role
