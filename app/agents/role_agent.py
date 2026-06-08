@@ -132,6 +132,13 @@ def generate_response(state: RoleAgentState) -> RoleAgentState:
         "role_name": state["role_name"],
         "time_context": time_context,
     })
+     # 尝试从 LLM 响应中获取 token 信息（仅当 llm 返回 AIMessage 时可获取）
+    # StrOutputParser 已经提取了纯文本，丢失了 usage_metadata。这里暂时使用估算方式。
+    # 若要精确统计，可改用 chain = prompt | llm，然后手动解析。
+
+    token_estimate = len(response)  # 粗略估算：中文每字约1.5个token
+    logger.info(f"角色 {state['role_name']} 生成回复，估算Token消耗：{token_estimate} 字符")
+
     state["final_response"] = response
     logger.info(f"角色 {state['role_name']} 生成回复完成，长度：{len(response)}")
     return state

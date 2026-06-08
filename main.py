@@ -10,6 +10,7 @@ from app.core.database import Base, engine
 from app.core.logger import logger
 from app.models.user import User  # 确保建表时包含 User 表
 from app.api.v1.users import router as users_router
+from app.middleware.timing import timing_middleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +33,8 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+app.middleware("http")(timing_middleware)
 
 # 跨域配置
 app.add_middleware(
