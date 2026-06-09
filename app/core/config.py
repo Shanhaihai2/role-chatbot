@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # 安全
     SECRET_KEY: str = "this-is-a-test-for-my-secret-key"
 
+    # 微信公众号
+    WECHAT_APP_ID: str = ""
+    WECHAT_APP_SECRET: str = ""
+    WECHAT_TOKEN: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
