@@ -21,7 +21,15 @@ async def create_role(
     db: Session = Depends(get_db)
 ):
     # 1. 读取上传文件的文本内容
-    raw_text = (await file.read()).decode("utf-8")
+    content = await file.read()
+    # 尝试 UTF-8，失败则尝试 GBK，再失败则忽略无法解码的字符
+    try:
+        raw_text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            raw_text = content.decode("gbk")
+        except UnicodeDecodeError:
+            raw_text = content.decode("utf-8", errors="ignore")
 
     # 2. 创建角色记录，暂存原始文本
     role = Role(
