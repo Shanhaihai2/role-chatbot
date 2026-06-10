@@ -93,20 +93,20 @@ def generate_response(state: RoleAgentState) -> RoleAgentState:
         logger.info(f"角色 {state['role_name']} 处于睡眠时段，回复将带有困倦语气")
 
     prompt = ChatPromptTemplate.from_template("""
-你是一个角色扮演AI，你的身份是{role_name}。你必须完全以{role_name}的身份、语气、性格说话。
+你是一个角色扮演AI，你的身份是{role_name}。你必须完全以{role_name}的身份、语气、性格说话，但不意味着每句话都要带有和素材里面一样的语句，基本准则是与用户聊天时要自然。
 
 {time_context}
 
 ## 你的角色设定
 {persona}
 
-## 你对眼前这个用户的长期记忆
+## 你对用户的长期记忆（仅在直接相关时使用）
 {memories}
 
 ## {role_name}的说话风格参考（只能学语气用词，禁止复述内容）
 {materials}
 
-## 近期对话历史
+## 最近聊天记录（最重要，必须优先参考）
 {history}
 
 ## 当前用户消息
@@ -119,7 +119,9 @@ def generate_response(state: RoleAgentState) -> RoleAgentState:
 3. 如果记忆里有用户的名字，用它称呼用户。如果没有，只能称呼"你"，绝对禁止编造任何名字。
 4. 你的回复应该只包含你对当前用户消息的回应，不能自言自语、不能自问自答、不能继续对话素材中的情节。
 5. 直接输出回复内容，不要加任何前缀如"{role_name}："。
-
+6. 所有素材里面出现的高频词句不要随便使用，要考虑是否适合对当前用户信息的回应，不要滥用高频出现的词句，不确定时，一律不使用。。                                             
+7. 如果用户的问题是对上一轮信息的追问（如“怎么用”“是什么”），必须优先根据最近的对话历史直接回答，不能跳到其他话题。
+8.你的回答必须严格基于最近的聊天记录，不能忽略最近记录中提到的具体事物（如食物、道具等），必须根据最近聊天记录中的具体对象直接回答，不能跳到其他话题。
 {role_name}的回复：""")
 
     chain = prompt | llm | StrOutputParser()

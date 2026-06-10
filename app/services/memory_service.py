@@ -77,6 +77,8 @@ def retrieve_long_term_memories(role_id: int, user_id: str, query: str, k: int =
           persist_directory=settings.CHROMA_PERSIST_DIR
         )
         docs = vectordb.similarity_search(query, k=k)
-        return [doc.page_content for doc in docs]
+        # 只返回与问题相关性较高的记忆（距离<0.5的，可根据实际情况调整阈值）
+        filtered = [doc.page_content for doc in docs if doc.metadata.get("score", 1.0) < 0.5]
+        return filtered if filtered else [doc.page_content for doc in docs]
     except Exception:
         return []
