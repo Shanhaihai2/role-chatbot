@@ -4,6 +4,8 @@ from app.core.logger import logger
 from app.services.wechat_service import verify_signature, send_custom_message
 from app.agents.role_agent import role_agent
 from fastapi.responses import PlainTextResponse
+from app.utils.wechat_commands import handle_command, get_user_session
+from app.utils.session import get_history, add_message
 
 router = APIRouter()
 # 已处理消息ID集合（内存去重）
@@ -62,6 +64,21 @@ async def wechat_message(request: Request):
     user_message = xml_data.find("Content").text
     logger.info(f"收到微信用户消息：openid={user_openid}, content={user_message}")
 
+    # ===== 第一步：尝试命令解析 =====
+    cmd_reply = handle_command(user_openid, user_message)
+    if cmd_reply is not None:
+        send_custom_message(user_openid, cmd_reply)
+        return "success"
+    
+    # ===== 第二步：正常对话 =====
+    session = get_user_session(user_openid)
+    selected_role_id = session.get("selected_role_id")
+
+    if not selected_role_id:
+        send_custom_message(user_openid, "请先选择一个角色。发送「我的角色」查看列表，或发送「/create 角色名」创建新角色。")
+        return "success"
+    
+
     # 调用角色 Agent 生成回复
     try:
         from app.core.database import SessionLocal
@@ -69,29 +86,28 @@ async def wechat_message(request: Request):
         db = SessionLocal()
         
         # 查找第一个有人设的角色
-        role = db.query(Role).filter(Role.persona_instruction.isnot(None), Role.persona_instruction != "").first()
+        role = db.query(Role).filter(Role.id == selected_role_id).first()
         db.close()
+        history = get_history(user_openid, selected_role_id)  # 用 openid 作为 user_id
+        history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history])
 
-        if role:
-            role_id = role.id
-            role_name = role.name
-            persona = role.persona_instruction
-        else:
-            # 如果没有可用角色，就用默认回复
-            send_custom_message(user_openid, "您好，请先通过后台创建一个角色吧！")
+        if not role or not role.persona_instruction:
+            send_custom_message(user_openid, "所选角色不可用，请重新选择。")
             return "success"
-
         result = role_agent.invoke({
-            "role_id": role_id,
+            "role_id": role.id,
             "user_id": user_openid,
-            "role_name": role_name,
-            "persona": persona,
+            "role_name": role.name,
+            "persona": role.persona_instruction,
             "user_message": user_message,
-            "history": "",
+            "history": history_text,
             "retrieved_materials": "",
             "retrieved_memories": "",
             "final_response": ""
         })
+        # 调用后存入历史
+        add_message(user_openid, selected_role_id, "user", user_message)
+        add_message(user_openid, selected_role_id, "ai", result["final_response"])
         reply = result["final_response"]
     except Exception as e:
         logger.error(f"角色 Agent 生成回复失败：{e}")
